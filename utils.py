@@ -1,0 +1,20 @@
+# utils.py
+import struct
+import time
+
+HEADER_FMT = '!B H I'  # ChannelType(1B), SeqNo(2B), Timestamp_ms(4B)
+HEADER_SIZE = struct.calcsize(HEADER_FMT)
+
+def now_ms():
+    return int(time.time() * 1000)
+
+def pack_packet(channel_type: int, seqno: int, timestamp_ms: int, payload: bytes) -> bytes:
+    header = struct.pack(HEADER_FMT, channel_type, seqno & 0xFFFF, timestamp_ms & 0xFFFFFFFF)
+    return header + payload
+
+def unpack_packet(data: bytes):
+    if len(data) < HEADER_SIZE:
+        raise ValueError("Packet too short")
+    channel_type, seqno, timestamp = struct.unpack(HEADER_FMT, data[:HEADER_SIZE])
+    payload = data[HEADER_SIZE:]
+    return channel_type, seqno, timestamp, payload
