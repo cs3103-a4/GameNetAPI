@@ -16,6 +16,8 @@ try:
 except KeyboardInterrupt:
     pass
 finally:
+    # Reliable packets are denoted by their seqno, unreliable packets are denoted by a string
+    # of comma-separated seqnos in between reliable packet seqnos based on the recv order
     result = []
     unrel_buffer = []
 
@@ -23,11 +25,9 @@ finally:
         if ch == 1:
             unrel_buffer.append(str(seq))
         else:
-            # Flush previous unreliables (if any)
             if unrel_buffer:
                 result.append(",".join(unrel_buffer))
                 unrel_buffer = []
-            # Add the reliable seqno
             result.append(seq)
 
     # Flush trailing unreliables (if any)

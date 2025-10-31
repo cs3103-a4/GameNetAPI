@@ -1,15 +1,12 @@
-# emulator.py
 """
 Simple UDP proxy that forwards between sender and receiver while introducing
 packet loss, delay, and jitter. Run as the middleman.
-
-Configurable params are near the top of this file.
 """
+
 import socket
 import threading
 import random
 import time
-from utils import now_ms
 
 # CONFIG
 EMULATOR_BIND = ('127.0.0.1', 11000)   # where sender & receiver send to (the proxy)
