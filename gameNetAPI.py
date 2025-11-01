@@ -40,7 +40,12 @@ class GameNetAPI:
           --> Also keep track of alr received seq nums in a set for O(1) lookup to increment 
               seq_to_recv
         - Buffer to recv reliable packets
-          --> Reorders using Selective Repeat, hence use hashmap for O(1) seq num lookup
+          --> Reorders using Selective Repeat, hence use minHeap for dynamic ordering by seq num.
+              BUT for simplicity's sake, use hashmap with O(1) seq num lookup for now. We lose 
+              out on the ability to recv consecutive reliable packets and then send 1 ACK for this
+              consecutive block instead of indiv ACKs, but in H-UDP this tradeoff is acceptable since
+              consecutive blocks of reliable packets are less likely due to interleaved unreliable
+              packets.
           --> Also keep track of last_missing_time for an expected seq num (assumed to be 
               reliable) which didn't arrive so we can skip it after timeout of 200ms
         - Thread for receiver to buffer received packets and send ACKs if reliable 
