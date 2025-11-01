@@ -4,9 +4,9 @@ import threading
 import time
 from utils import pack_packet, unpack_packet, now_ms
 
-RETRANSMIT_MS = 100
-SKIP_TIMEOUT_MS = 200
-MAX_RETRANSMIT_ATTEMPTS = 20
+RETRANSMIT_TIMEOUT_MS = 200  # Timeout t beyond which reliable packet is dropped = 200ms
+RETRANSMIT_INTERVAL_MS = 20  # Time delta between each retransmission attempt
+MAX_RETRANSMIT_ATTEMPTS = 10  # 10 attempts * 20ms = 200ms <= timeout t
 RELIABLE_CHANNEL = 0
 UNRELIABLE_CHANNEL = 1
 
@@ -35,17 +35,23 @@ class GameNetAPI:
         """
         2. Setup resources needed for reliable recv
         - Seq num of received packets
-        - Buffer to recv all incoming packets
-        - Reliable buffer to store critical packets
-        - Thead for receiver to buffer received packets and send ACKs if reliable 
+        - Buffer to recv unreliable packets
+          --> Order doesn't matter, hence can use FIFO queue
+          --> Also keep track of alr received seq nums in a set for O(1) lookup to increment 
+              seq_to_recv
+        - Buffer to recv reliable packets
+          --> Reorders using Selective Repeat, hence use hashmap for O(1) seq num lookup
+          --> Also keep track of last_missing_time for an expected seq num (assumed to be 
+              reliable) which didn't arrive so we can skip it after timeout of 200ms
+        - Thread for receiver to buffer received packets and send ACKs if reliable 
           (combined with recv_or_send_ack_thread in step 3)
-          --> Need mutex lock to protect unreliable buffer, unreliable seq, reliable buffer, 
+          --> Need mutex lock to protect unreliable_buffer, unreliable_seqs, reliable_buffer, 
               and last_missing_time since these resources are accessed concurrently in primary 
               thread and recv_or_send_ack_thread
         """
         self.seq_to_recv = 0
         self.unreliable_buffer = deque()  # Unreliable packets buffer: FIFO queue of (recv_seq, payload)
-        self.unreliable_seqs = set()  # Set of seq nums in unreliable buffer so we can increment self.seq_to_recv
+        self.unreliable_seqs = set()  # To increment self.seq_to_recv if alr recv seq num
         self.reliable_buffer = {}  # Reliable packets buffer: {recv_seq -> (payload, timestamp)}
         self.last_missing_time = None
 
@@ -96,7 +102,6 @@ class GameNetAPI:
         """
         Returns (payload, channel_type, recv_seq) in-order for reliable packets.
         Unreliable packets returned immediately (unordered).
-        If reliable_only=True, returns only reliable packets.
         """
         if self.is_sender:
             print("[gameNetAPI] Error: only receiver can recv packets")
@@ -113,9 +118,11 @@ class GameNetAPI:
                     self.last_missing_time = None
                     return seq, RELIABLE_CHANNEL, payload
 
-                # 2. Skip reliable missing seq after timeout
-                if self.last_missing_time and (now_ms() - self.last_missing_time) > SKIP_TIMEOUT_MS:
-                    print(f"[gameNetAPI] skipping (reliable) missing seq={self.seq_to_recv}")
+                # 2. Skip missing seq num after timeout (no info on whether this seq num is 
+                # critical or not)
+                if (self.last_missing_time and 
+                    (now_ms() - self.last_missing_time) > RETRANSMIT_TIMEOUT_MS):
+                    print(f"[gameNetAPI] skipping missing seq={self.seq_to_recv}")
                     self.seq_to_recv = self._increment_seq(self.seq_to_recv) 
                     self.last_missing_time = now_ms()
 
@@ -125,7 +132,8 @@ class GameNetAPI:
                     if self.seq_to_recv in self.unreliable_seqs:
                         self.unreliable_seqs.remove(self.seq_to_recv)
                         self.seq_to_recv = self._increment_seq(self.seq_to_recv)
-                    return self.unreliable_buffer.popleft()
+                    seq, payload = self.unreliable_buffer.popleft()
+                    return seq, UNRELIABLE_CHANNEL, payload
 
             # 4. Timeout or blocking behavior
             if not block:
@@ -171,11 +179,10 @@ class GameNetAPI:
                         
                     ack = pack_packet(RELIABLE_CHANNEL, seq, now_ms(), b"ACK")
                     self.sock.sendto(ack, self.dest_socket_addr)
-
                 else:
                     # Add packet to unreliable buffer and visited set
                     with self.unreliable_data_lock:
-                        self.unreliable_buffer.append((seq, UNRELIABLE_CHANNEL, payload))
+                        self.unreliable_buffer.append((seq, payload))
                         self.unreliable_seqs.add(seq)
                 
     def _retransmit(self):
@@ -185,16 +192,15 @@ class GameNetAPI:
             to_retransmit = []
             with self.pending_acks_lock:
                 for seq, info in list(self.pending_acks.items()):
-                    if now - info["sent_time"] > RETRANSMIT_MS:
-                        if info["attempts"] < MAX_RETRANSMIT_ATTEMPTS:
-                            to_retransmit.append(seq)
-                        else:
-                            del self.pending_acks[seq]
+                    if now - info["sent_time"] <= RETRANSMIT_INTERVAL_MS: continue
+                    if info["attempts"] < MAX_RETRANSMIT_ATTEMPTS:
+                        to_retransmit.append(seq)
+                    else:
+                        del self.pending_acks[seq] # Stop retransmitting if alr max attempts
             for seq in to_retransmit:
                 with self.pending_acks_lock:
                     info = self.pending_acks.get(seq)
-                    if not info:
-                        continue
+                    if not info: continue
                     self.sock.sendto(info["packet"], self.dest_socket_addr)
                     info["sent_time"] = now_ms()
                     info["attempts"] += 1
