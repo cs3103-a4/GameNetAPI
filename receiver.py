@@ -49,7 +49,7 @@ class Receiver:
                         self.seq_to_recv)
                     seq = self.seq_to_recv
                     self.seq_to_recv = increment_seq(seq)
-                    self.last_missing_time = None
+                    self.last_missing_time = now_ms()
                     # Count metrics only on delivery to application layer
                     self.metrics.update_on_receive(
                         RELIABLE_CHANNEL, len(payload), send_ts, arrival_ts)
@@ -101,8 +101,6 @@ class Receiver:
                 with self.reliable_data_lock:
                     # Store payload and timing for delivery-time metrics
                     self.reliable_buffer[seq] = (payload, ts, arrival)
-                    if seq > self.seq_to_recv and self.last_missing_time is None:
-                        self.last_missing_time = arrival
 
                 ack = pack_packet(RELIABLE_CHANNEL, seq, arrival, b"ACK")
                 self.sock.sendto(ack, self.dest_socket_addr)

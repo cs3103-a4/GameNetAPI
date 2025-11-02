@@ -14,9 +14,6 @@ import argparse
 EMULATOR_PROXY = ('127.0.0.1', 11000)
 RECEIVER_ADDR = ('127.0.0.1', 12001)
 SENDER_ADDR = ('127.0.0.1', 12000)
-LOSS_RATE = 0.2
-MEAN_DELAY_MS = 30
-JITTER_MS = 20
 VERBOSE = True
 
 
@@ -78,11 +75,11 @@ def run_emulator():
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--loss", type=float,
-                        default=LOSS_RATE, help="Drop probability [0-1]")
+                        default=0.2, help="Drop probability [0-1]")
     parser.add_argument("--delay", type=float,
-                        default=MEAN_DELAY_MS, help="Mean one-way delay in ms")
+                        default=30, help="Mean one-way delay in ms")
     parser.add_argument("--jitter", type=float,
-                        default=JITTER_MS, help="Jitter range in ms (+/-)")
+                        default=20, help="Jitter range in ms (+/-)")
     parser.add_argument("--quiet", action="store_true",
                         help="Reduce emulator logging")
     args = parser.parse_args()
