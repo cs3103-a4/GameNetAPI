@@ -5,7 +5,7 @@ import random
 import argparse
 import json
 from emulator import EMULATOR_PROXY, SENDER_ADDR, RECEIVER_ADDR
-from utils import increment_seq, pack_packet, unpack_packet, now_ms, RELIABLE_CHANNEL, UNRELIABLE_CHANNEL, HEADER_SIZE
+from utils import increment_seq, pack_packet, unpack_packet, now_ms, RELIABLE_CHANNEL, UNRELIABLE_CHANNEL
 from metrics import SenderMetrics, format_sender_summary
 
 # Timeout t beyond which reliable packet is dropped = 200ms
