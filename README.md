@@ -19,10 +19,10 @@ To test gameNetAPI:
 
 ## Metrics
 
-This project now collects per-channel metrics aligned with the assignment:
+This project collects per-channel metrics:
 
-- Receiver side (one-way): latency mean/p50/p95, RFC3550 jitter, throughput, packets/bytes
-- Sender side (reliable): RTT mean/p50/p95, retransmissions, dropped-after-timeout
+- Receiver side (one-way): latency p50/p95, RFC3550 jitter, throughput, packets/bytes
+- Sender side: sent packets/bytes and retransmissions
 - Packet Delivery Ratio (PDR): combine sender sent counts with receiver received counts
 
 At the end of a run, sender and receiver print a metrics summary per channel.
@@ -106,11 +106,6 @@ python3 sender.py --duration 10 --rate 20 --metrics-json sender_high.json
 ```
 
 ### Options
-
-Sender
-
-- `--reliable-prob 0.5` to choose the split between reliable/unreliable.
-- `--seed 42` for a reproducible split.
 
 Emulator
 

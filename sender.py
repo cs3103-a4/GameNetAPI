@@ -1,7 +1,6 @@
 import socket
 import threading
 import time
-import random
 import argparse
 import json
 from emulator import EMULATOR_PROXY, SENDER_ADDR, RECEIVER_ADDR
@@ -93,8 +92,7 @@ class Sender:
                         to_retransmit.append(seq)
                     else:
                         del self.pending_acks[seq]
-                        # Drop reliable packet after timeout window
-                        self.metrics.update_on_drop()
+                        # Drop reliable packet after timeout window (no metrics collected)
             for seq in to_retransmit:
                 with self.pending_acks_lock:
                     # Retransmit packet, then update sent time and attempts info
@@ -120,25 +118,20 @@ if __name__ == '__main__':
                         help="Packets per second (avg)")
     parser.add_argument("--metrics-json", type=str, default="",
                         help="Optional path to write sender metrics JSON summary")
-    parser.add_argument("--reliable-prob", type=float, default=0.5,
-                        help="Probability [0-1] that a packet is sent on the reliable channel (default 0.5)")
-    parser.add_argument("--seed", type=int, default=None,
-                        help="Optional RNG seed for reproducible reliable/unreliable split")
     args = parser.parse_args()
 
     dest = RECEIVER_ADDR if args.direct else EMULATOR_PROXY
     sender = Sender(SENDER_ADDR, dest)
     start = time.time()
 
-    # Configure RNG behavior
-    if args.seed is not None:
-        random.seed(args.seed)
-    p_rel = min(1.0, max(0.0, args.reliable_prob))
+    # Alternate between reliable and unreliable for simplicity
+    next_rel = True
 
     try:
         interval = 1.0 / max(0.1, args.rate)
         while time.time() - start < args.duration:
-            is_reliable = (random.random() < p_rel)
+            is_reliable = next_rel
+            next_rel = not next_rel
             msg = f"hello_{'R' if is_reliable else 'U'}"
             seq = sender.send(msg, is_reliable=is_reliable)
             print(f"[SENDER] Sent seq={seq} is_reliable={is_reliable}")
