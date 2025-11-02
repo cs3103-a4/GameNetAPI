@@ -48,6 +48,7 @@ class Sender:
                 self.pending_acks[seq] = {
                     "packet": packet,
                     "sent_time": send_time,
+                    "first_sent_time": send_time,
                     "attempts": 1
                 }
         self.seq_to_send = increment_seq(seq)
@@ -74,8 +75,12 @@ class Sender:
             with self.pending_acks_lock:
                 info = self.pending_acks.pop(seq, None)
             if info is not None:
-                rtt = now_ms() - info["sent_time"]
-                self.metrics.update_on_ack(rtt)
+                nowt = now_ms()
+                # Compute reliable one-way latency from first send to ACK arrival, divided by 2
+                rtt_from_first = nowt - \
+                    info.get("first_sent_time", info["sent_time"])
+                reliable_latency = rtt_from_first / 2.0
+                self.metrics.update_on_reliable_latency(reliable_latency)
 
     def _retransmit(self):
         while self.running_threads:

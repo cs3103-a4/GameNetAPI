@@ -30,13 +30,14 @@ class ReceiverMetrics:
         st = self._stats[channel]
         st["packets"] += 1
         st["bytes"] += payload_len
-        # Record one-way latency and jitter for BOTH channels at receiver side
-        t = self._wrap_diff_ms(arrival_ms, send_ts_ms)
-        st["latencies"].append(t)
-        if st["_last"] is not None:
-            d = abs(t - st["_last"])
-            st["jitter"] += (d - st["jitter"]) / 16.0
-        st["_last"] = t
+        # Only record latency/jitter for UNRELIABLE on receiver side (reliable will be NA)
+        if channel == UNRELIABLE:
+            t = self._wrap_diff_ms(arrival_ms, send_ts_ms)
+            st["latencies"].append(t)
+            if st["_last"] is not None:
+                d = abs(t - st["_last"])
+                st["jitter"] += (d - st["jitter"]) / 16.0
+            st["_last"] = t
 
     def summary(self):
         dur = (max(0, (self.end_time_ms - self.start_time_ms)) / 1000.0) if (
@@ -45,18 +46,26 @@ class ReceiverMetrics:
         for ch, st in self._stats.items():
             l = st["latencies"]
             name = "reliable" if ch == RELIABLE else "unreliable"
-            out[name] = {
-                "packets": st["packets"], "bytes": st["bytes"],
-                # only p50/p95 latency per request
-                "latency_p50_ms": _pct(l, 50), "latency_p95_ms": _pct(l, 95),
-                "jitter_ms": float(st["jitter"]), "throughput_Bps": (st["bytes"]/dur if dur > 0 else 0.0)
-            }
+            if ch == RELIABLE:
+                out[name] = {
+                    "packets": st["packets"], "bytes": st["bytes"],
+                    "latency_p50_ms": None, "latency_p95_ms": None,
+                    "jitter_ms": None,
+                    "throughput_Bps": (st["bytes"]/dur if dur > 0 else 0.0)
+                }
+            else:
+                out[name] = {
+                    "packets": st["packets"], "bytes": st["bytes"],
+                    "latency_p50_ms": _pct(l, 50), "latency_p95_ms": _pct(l, 95),
+                    "jitter_ms": float(st["jitter"]),
+                    "throughput_Bps": (st["bytes"]/dur if dur > 0 else 0.0)
+                }
         return out
 
 
 class SenderMetrics:
     def __init__(self):
-        self._stats = {ch: {"sent_packets": 0, "sent_bytes": 0, "retransmissions": 0}
+        self._stats = {ch: {"sent_packets": 0, "sent_bytes": 0, "retransmissions": 0, "reliable_latencies": []}
                        for ch in (RELIABLE, UNRELIABLE)}
 
     def update_on_send(self, channel, total_len):
@@ -72,6 +81,10 @@ class SenderMetrics:
         # RTT collection removed from metrics (no-op)
         return
 
+    def update_on_reliable_latency(self, latency_ms: float):
+        # Record reliable one-way latency estimate (computed at sender as (ACK_time - first_send)/2)
+        self._stats[RELIABLE]["reliable_latencies"].append(float(latency_ms))
+
     # Dropped packet counting removed from metrics (no-op kept for compatibility)
     def update_on_drop(self):
         return
@@ -80,9 +93,14 @@ class SenderMetrics:
         out = {}
         for ch, st in self._stats.items():
             name = "reliable" if ch == RELIABLE else "unreliable"
+            o = st.get("reliable_latencies", [])
             out[name] = {
-                "sent_packets": st["sent_packets"], "sent_bytes": st["sent_bytes"],
+                "sent_packets": st["sent_packets"],
+                "sent_bytes": st["sent_bytes"],
                 "retransmissions": st["retransmissions"],
+                # Reliable one-way latency (sender-estimated) as p50/p95; NA for unreliable
+                "latency_p50_ms": _pct(o, 50) if ch == RELIABLE else None,
+                "latency_p95_ms": _pct(o, 95) if ch == RELIABLE else None,
             }
         return out
 
@@ -108,10 +126,16 @@ def format_receiver_summary(summary: dict) -> str:
 def format_sender_summary(summary: dict) -> str:
     hdr = (
         "[SENDER] Metrics summary:\n"
-        "  channel      sent_pkts(cnt)  sent_bytes(B)  retrans(cnt)"
+        "  channel      sent_pkts(cnt)  sent_bytes(B)  retrans(cnt)  latency_p50(ms)  latency_p95(ms)"
     )
+
+    def fmt_float(v, width, prec):
+        if v is None:
+            return f"{'NA':>{width}}"
+        return f"{float(v):>{width}.{prec}f}"
 
     def row(name, s):
         return (f"  {name:<11}{int(s.get('sent_packets',0)):>16}{int(s.get('sent_bytes',0)):>15}"
-                f"{int(s.get('retransmissions',0)):>13}")
+                f"{int(s.get('retransmissions',0)):>13}{fmt_float(s.get('latency_p50_ms'),12,2)}"
+                f"{fmt_float(s.get('latency_p95_ms'),12,2)}")
     return "\n".join([hdr, row("reliable", summary.get("reliable", {})), row("unreliable", summary.get("unreliable", {}))])
