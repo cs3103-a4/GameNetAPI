@@ -24,7 +24,7 @@ class Receiver:
         # Unreliable packets buffer: FIFO queue of (recv_seq, send_ts, arrival_ts, payload)
         self.unreliable_buffer = deque()
         self.unreliable_seqs = set()  # To increment self.seq_to_recv if alr recv seq num
-    # Reliable packets buffer: {recv_seq -> (payload, send_ts, arrival_ts)}
+        # Reliable packets buffer: {recv_seq -> (payload, send_ts, arrival_ts)}
         self.reliable_buffer = {}
         self.last_missing_time = None
 
