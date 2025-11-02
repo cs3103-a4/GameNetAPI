@@ -2,11 +2,10 @@ import socket
 import threading
 import time
 from collections import deque
-from utils import pack_packet, unpack_packet, now_ms
+from emulator import EMULATOR_PROXY, RECEIVER_ADDR
+from utils import increment_seq, pack_packet, unpack_packet, now_ms, RELIABLE_CHANNEL, UNRELIABLE_CHANNEL
 
 RETRANSMIT_TIMEOUT_MS = 200
-RELIABLE_CHANNEL = 0
-UNRELIABLE_CHANNEL = 1
 
 class Receiver:
     def __init__(self, src_socket_addr, dest_socket_addr):
@@ -32,25 +31,26 @@ class Receiver:
     def recv(self, block=False, timeout=None):
         start = time.time()
         while True:
+            # Receive from reliable buffer first
             with self.reliable_data_lock:
                 if self.seq_to_recv in self.reliable_buffer:
                     payload, ts = self.reliable_buffer.pop(self.seq_to_recv)
                     seq = self.seq_to_recv
-                    self.seq_to_recv = self._increment_seq(seq)
+                    self.seq_to_recv = increment_seq(seq)
                     self.last_missing_time = None
                     return seq, RELIABLE_CHANNEL, payload
 
                 if (self.last_missing_time and 
                     (now_ms() - self.last_missing_time) > RETRANSMIT_TIMEOUT_MS):
                     print(f"[RECEIVER] skipping missing seq={self.seq_to_recv}")
-                    self.seq_to_recv = self._increment_seq(self.seq_to_recv)
+                    self.seq_to_recv = increment_seq(self.seq_to_recv)
                     self.last_missing_time = now_ms()
-
+            # Then receive from unreliable buffer
             with self.unreliable_data_lock:
                 if self.unreliable_buffer:
                     if self.seq_to_recv in self.unreliable_seqs:
                         self.unreliable_seqs.remove(self.seq_to_recv)
-                        self.seq_to_recv = self._increment_seq(self.seq_to_recv)
+                        self.seq_to_recv = increment_seq(self.seq_to_recv)
                     seq, payload = self.unreliable_buffer.popleft()
                     return seq, UNRELIABLE_CHANNEL, payload
 
@@ -64,9 +64,6 @@ class Receiver:
         self.running_threads = False
         self.sock.close()
     
-    def _increment_seq(self, seq):
-        return (seq + 1) & 0xFFFF
-
     def _recv_and_ack(self):
         while self.running_threads:
             try:
@@ -79,6 +76,7 @@ class Receiver:
             except Exception:
                 continue
             
+            # If critical packet, store in reliable buffer and send ACK
             if ch == RELIABLE_CHANNEL:
                 with self.reliable_data_lock:
                     self.reliable_buffer[seq] = (payload, now_ms())
@@ -87,6 +85,7 @@ class Receiver:
                 
                 ack = pack_packet(RELIABLE_CHANNEL, seq, now_ms(), b"ACK")
                 self.sock.sendto(ack, self.dest_socket_addr)
+            # Else simply push to unreliable buffer
             else:
                 with self.unreliable_data_lock:
                     self.unreliable_buffer.append((seq, payload))
@@ -94,7 +93,7 @@ class Receiver:
 
 # Main receiver logic
 print("[RECEIVER] listening...")
-receiver = Receiver(('127.0.0.1', 12001), ('127.0.0.1', 11000))
+receiver = Receiver(RECEIVER_ADDR, EMULATOR_PROXY) # Change dst to SENDER_ADDR to skip emulator proxy
 recv = []
 start_time = time.time()
 

@@ -9,16 +9,16 @@ import random
 import time
 
 # CONFIG
-EMULATOR_BIND = ('127.0.0.1', 11000)   # where sender & receiver send to (the proxy)
-RECEIVER_ADDR = ('127.0.0.1', 12001)   # forward endpoint (receiver)
-SENDER_ADDR = ('127.0.0.1', 12000)     # forward endpoint (sender)
-LOSS_RATE = 0.2    # probability to drop any observed packet
-MEAN_DELAY_MS = 30  # average one-way delay
-JITTER_MS = 20      # +/- jitter
+EMULATOR_PROXY = ('127.0.0.1', 11000)   # Proxy addr where sender & receiver sends to
+RECEIVER_ADDR = ('127.0.0.1', 12001)
+SENDER_ADDR = ('127.0.0.1', 12000)
+LOSS_RATE = 0.2
+MEAN_DELAY_MS = 30
+JITTER_MS = 20
 VERBOSE = True
 
 sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-sock.bind(EMULATOR_BIND)
+sock.bind(EMULATOR_PROXY)
 sock.setblocking(True)
 
 # We will forward packets from Sender->Receiver and Receiver->Sender.
@@ -33,14 +33,14 @@ def send_with_delay(data, dest, delay_ms):
     t = threading.Thread(target=_send, daemon=True)
     t.start()
 
-print("[EMULATOR] running at", EMULATOR_BIND)
+print("[EMULATOR] running at", EMULATOR_PROXY)
 print("[EMULATOR] forwarding between sender", SENDER_ADDR, "and receiver", RECEIVER_ADDR)
 print(f"[EMULATOR] LOSS={LOSS_RATE*100:.1f}%, mean_delay={MEAN_DELAY_MS}ms, jitter={JITTER_MS}ms\n")
 
 try:
     while True:
         data, addr = sock.recvfrom(65536)
-        # decide direction: if from sender port => forward to receiver; else -> sender
+        # Decide direction: if from sender port => forward to receiver; else -> sender
         if addr[1] == SENDER_ADDR[1]:
             dest = RECEIVER_ADDR
             src_label = "SENDER"
