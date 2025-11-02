@@ -21,7 +21,7 @@ class Receiver:
         self.sock.setblocking(False)
 
         self.seq_to_recv = 0
-    # Unreliable packets buffer: FIFO queue of (recv_seq, send_ts, arrival_ts, payload)
+        # Unreliable packets buffer: FIFO queue of (recv_seq, send_ts, arrival_ts, payload)
         self.unreliable_buffer = deque()
         self.unreliable_seqs = set()  # To increment self.seq_to_recv if alr recv seq num
     # Reliable packets buffer: {recv_seq -> (payload, send_ts, arrival_ts)}
