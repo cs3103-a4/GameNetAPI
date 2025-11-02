@@ -91,39 +91,40 @@ class Receiver:
                     self.unreliable_buffer.append((seq, payload))
                     self.unreliable_seqs.add(seq)
 
-# Main receiver logic
-print("[RECEIVER] listening...")
-receiver = Receiver(RECEIVER_ADDR, EMULATOR_PROXY) # Change dst to SENDER_ADDR to skip emulator proxy
-recv = []
-start_time = time.time()
+if __name__ == '__main__':
+    # Main receiver logic
+    print("[RECEIVER] listening...")
+    receiver = Receiver(RECEIVER_ADDR, EMULATOR_PROXY) # Change dst to SENDER_ADDR to skip emulator proxy
+    recv = []
+    start_time = time.time()
 
-try:
-    while time.time() - start_time < 15:
-        msg = receiver.recv(block=True, timeout=1)
-        if msg:
-            seq, ch, data = msg
-            print(f"[RECEIVER] got seq={seq} ch={'REL' if ch==RELIABLE_CHANNEL else 'UNREL'} data={data}")
-            recv.append((seq, ch))
-except KeyboardInterrupt:
-    pass
-finally:
-    # Reliable packets are denoted by their seqno, unreliable packets are denoted by a string
-    # of comma-separated seqnos in between reliable packet seqnos based on the recv order
-    result = []
-    unrel_buffer = []
+    try:
+        while time.time() - start_time < 15:
+            msg = receiver.recv(block=True, timeout=1)
+            if msg:
+                seq, ch, data = msg
+                print(f"[RECEIVER] got seq={seq} ch={'REL' if ch==RELIABLE_CHANNEL else 'UNREL'} data={data}")
+                recv.append((seq, ch))
+    except KeyboardInterrupt:
+        pass
+    finally:
+        # Reliable packets are denoted by their seqno, unreliable packets are denoted by a string
+        # of comma-separated seqnos in between reliable packet seqnos based on the recv order
+        result = []
+        unrel_buffer = []
 
-    for seq, ch in recv:
-        if ch == UNRELIABLE_CHANNEL:
-            unrel_buffer.append(str(seq))
-        else:
-            if unrel_buffer:
-                result.append(",".join(unrel_buffer))
-                unrel_buffer = []
-            result.append(seq)
+        for seq, ch in recv:
+            if ch == UNRELIABLE_CHANNEL:
+                unrel_buffer.append(str(seq))
+            else:
+                if unrel_buffer:
+                    result.append(",".join(unrel_buffer))
+                    unrel_buffer = []
+                result.append(seq)
 
-    # Flush trailing unreliables (if any)
-    if unrel_buffer:
-        result.append(",".join(unrel_buffer))
+        # Flush trailing unreliables (if any)
+        if unrel_buffer:
+            result.append(",".join(unrel_buffer))
 
-    print(f"[RECEIVER] RESULT: {result}")
-    receiver.close()
+        print(f"[RECEIVER] RESULT: {result}")
+        receiver.close()

@@ -87,18 +87,19 @@ class Sender:
                     info["attempts"] += 1
                     print(f"[SENDER] Retransmit seq={seq} attempt={info['attempts']}")
 
-# Main sender logic
-sender = Sender(SENDER_ADDR, EMULATOR_PROXY) # Change dst to RECEIVER_ADDR to skip emulator proxy
-start = time.time()
+if __name__ == '__main__':
+    # Main sender logic
+    sender = Sender(SENDER_ADDR, EMULATOR_PROXY) # Change dst to RECEIVER_ADDR to skip emulator proxy
+    start = time.time()
 
-try:
-    while time.time() - start < 10:
-        is_reliable = random.random() < 0.5
-        msg = f"hello_{'R' if is_reliable else 'U'}"
-        seq = sender.send(msg, is_reliable=is_reliable)
-        print(f"[SENDER] Sent seq={seq} is_reliable={is_reliable}")
-        time.sleep(0.1)
-except KeyboardInterrupt:
-    pass
-finally:
-    sender.close()
+    try:
+        while time.time() - start < 10:
+            is_reliable = random.random() < 0.5
+            msg = f"hello_{'R' if is_reliable else 'U'}"
+            seq = sender.send(msg, is_reliable=is_reliable)
+            print(f"[SENDER] Sent seq={seq} is_reliable={is_reliable}")
+            time.sleep(0.1)
+    except KeyboardInterrupt:
+        pass
+    finally:
+        sender.close()
