@@ -10,9 +10,8 @@ To test gameNetAPI:
 
 ```
 ├─ emulator.py    # Intercepts packet transmission and introduces loss and delay
-├─ gameNetAPI.py  # Core H-UDP implementation (reliable + unreliable transport)
-├─ receiver.py    # Receives packets via GameNetAPI
-├─ sender.py      # Sends packets via GameNetAPI
+├─ receiver.py    # Manages reliable / unreliable buffers to receive packets
+├─ sender.py      # Sends UDP packets with retransmission for reliable ones
 └─ utils.py       # Helper functions for packing/unpacking packets, timestamps, etc.
 ```
 
