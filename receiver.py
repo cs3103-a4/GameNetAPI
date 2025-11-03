@@ -40,7 +40,7 @@ class Receiver:
         self.recv_thread.start()
 
     def recv(self, block=False, timeout=None):
-        start = time.time()
+        start = now_ms()
         while True:
             # Receive from reliable buffer first
             with self.reliable_data_lock:
@@ -49,7 +49,8 @@ class Receiver:
                         self.seq_to_recv)
                     seq = self.seq_to_recv
                     self.seq_to_recv = increment_seq(seq)
-                    self.last_missing_time = now_ms()
+                    self.last_missing_time = None
+
                     # Count metrics only on delivery to application layer
                     self.metrics.update_on_receive(
                         RELIABLE_CHANNEL, len(payload), send_ts, arrival_ts)
@@ -77,7 +78,11 @@ class Receiver:
                 return None
             if timeout and time.time() - start > timeout:
                 return None
-            time.sleep(0.01)
+            
+            if (now_ms() - start > 1000):
+                print(f"[RECEIVER] no new arrivals, auto skip seq={self.seq_to_recv}")
+                self.seq_to_recv = increment_seq(self.seq_to_recv)
+                return None
 
     def close(self):
         self.running_threads = False
@@ -101,6 +106,8 @@ class Receiver:
                 with self.reliable_data_lock:
                     # Store payload and timing for delivery-time metrics
                     self.reliable_buffer[seq] = (payload, ts, arrival)
+                if seq > self.seq_to_recv and self.last_missing_time is None:
+                    self.last_missing_time = arrival
 
                 ack = pack_packet(RELIABLE_CHANNEL, seq, arrival, b"ACK")
                 self.sock.sendto(ack, self.dest_socket_addr)
@@ -144,28 +151,6 @@ if __name__ == '__main__':
         pass
     finally:
         receiver.metrics.stop(now_ms())
-        # TODO: not rly a todo but im not sure of the usecase for the result array so i'm commenting this out (ALAN)
-
-        # Reliable packets are denoted by their seqno, unreliable packets are denoted by a string
-        # of comma-separated seqnos in between reliable packet seqnos based on the recv order
-        # result = []
-        # unrel_buffer = []
-
-        # for seq, ch in recv:
-        #     if ch == UNRELIABLE_CHANNEL:
-        #         unrel_buffer.append(str(seq))
-        #     else:
-        #         if unrel_buffer:
-        #             result.append(",".join(unrel_buffer))
-        #             unrel_buffer = []
-        #         result.append(seq)
-
-        # # Flush trailing unreliables (if any)
-        # if unrel_buffer:
-        #     result.append(",".join(unrel_buffer))
-
-        # print(f"[RECEIVER] RESULT: {result}")
-        # print()
         recv_summary = receiver.metrics.summary()
         print(format_receiver_summary(recv_summary))
 
