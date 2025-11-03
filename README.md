@@ -2,9 +2,9 @@
 
 To test gameNetAPI:
 
-1. First, run `python3 emulator.py` (optional if using `--direct`)
-2. Open a new terminal and run `python3 receiver.py [--direct] [--duration 20]`
-3. Open a new terminal and run `python3 sender.py [--direct] [--duration 10] [--rate 10]`
+1. First, run `python emulator.py` (optional if using `--direct`)
+2. Open a new terminal and run `python receiver.py [--direct] [--duration 20]`
+3. Open a new terminal and run `python sender.py [--direct] [--duration 10] [--rate 10]`
 
 ## Project structure
 
@@ -43,13 +43,13 @@ Below are ready-to-run commands to produce summaries for different network condi
 Receiver (Terminal B)
 
 ```bash
-python3 receiver.py --direct --duration 8 --metrics-json receiver_direct.json --pdr-from sender_direct.json
+python receiver.py --direct --duration 8 --metrics-json metrics/receiver_direct.json --pdr-from metrics/sender_direct.json
 ```
 
 Sender (Terminal C)
 
 ```bash
-python3 sender.py --direct --duration 6 --rate 20 --metrics-json sender_direct.json
+python sender.py --direct --duration 6 --rate 20 --metrics-json metrics/sender_direct.json
 ```
 
 ### Low loss (<2%), modest latency
@@ -57,19 +57,19 @@ python3 sender.py --direct --duration 6 --rate 20 --metrics-json sender_direct.j
 Emulator (Terminal A)
 
 ```bash
-python3 emulator.py --loss 0.01 --delay 20 --jitter 5 --quiet
+python emulator.py --loss 0.01 --delay 20 --jitter 5 --quiet
 ```
 
 Receiver (Terminal B)
 
 ```bash
-python3 receiver.py --duration 12 --metrics-json receiver_low.json --pdr-from sender_low.json
+python receiver.py --duration 12 --metrics-json metrics/receiver_low.json --pdr-from metrics/sender_low.json
 ```
 
 Sender (Terminal C)
 
 ```bash
-python3 sender.py --duration 10 --rate 20 --metrics-json sender_low.json
+python sender.py --duration 10 --rate 20 --metrics-json metrics/sender_low.json
 ```
 
 ### Moderate jitter, no loss
@@ -77,19 +77,19 @@ python3 sender.py --duration 10 --rate 20 --metrics-json sender_low.json
 Emulator (Terminal A)
 
 ```bash
-python3 emulator.py --loss 0.00 --delay 20 --jitter 50 --quiet
+python emulator.py --loss 0.00 --delay 20 --jitter 50 --quiet
 ```
 
 Receiver (Terminal B)
 
 ```bash
-python3 receiver.py --duration 12 --metrics-json receiver_jitter.json --pdr-from sender_jitter.json
+python receiver.py --duration 12 --metrics-json metrics/receiver_jitter.json --pdr-from metrics/sender_jitter.json
 ```
 
 Sender (Terminal C)
 
 ```bash
-python3 sender.py --duration 10 --rate 20 --metrics-json sender_jitter.json
+python sender.py --duration 10 --rate 20 --metrics-json metrics/sender_jitter.json
 ```
 
 ### High loss (>10%), noticeable impact
@@ -97,19 +97,19 @@ python3 sender.py --duration 10 --rate 20 --metrics-json sender_jitter.json
 Emulator (Terminal A)
 
 ```bash
-python3 emulator.py --loss 0.11 --delay 10 --quiet 
+python emulator.py --loss 0.11 --delay 10 --quiet 
 ```
 
 Receiver (Terminal B)
 
 ```bash
-python3 receiver.py --duration 20 --metrics-json receiver_high.json --pdr-from sender_high.json
+python receiver.py --duration 20 --metrics-json metrics/receiver_high.json --pdr-from metrics/sender_high.json
 ```
 
 Sender (Terminal C)
 
 ```bash
-python3 sender.py --duration 10 --rate 10 --metrics-json sender_high.json
+python sender.py --duration 10 --rate 10 --metrics-json metrics/sender_high.json
 ```
 
 ### Options
