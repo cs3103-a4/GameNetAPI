@@ -1,11 +1,16 @@
 import socket
 import threading
 import time
+import argparse
+import json
+import os
 from collections import deque
-from emulator import EMULATOR_PROXY, RECEIVER_ADDR
+from emulator import EMULATOR_PROXY, RECEIVER_ADDR, SENDER_ADDR
 from utils import increment_seq, pack_packet, unpack_packet, now_ms, RELIABLE_CHANNEL, UNRELIABLE_CHANNEL
+from metrics import ReceiverMetrics, format_receiver_summary
 
 RETRANSMIT_TIMEOUT_MS = 200
+
 
 class Receiver:
     def __init__(self, src_socket_addr, dest_socket_addr):
@@ -16,16 +21,22 @@ class Receiver:
         self.sock.setblocking(False)
 
         self.seq_to_recv = 0
-        self.unreliable_buffer = deque()  # Unreliable packets buffer: FIFO queue of (recv_seq, payload)
+        # Unreliable packets buffer: FIFO queue of (recv_seq, send_ts, arrival_ts, payload)
+        self.unreliable_buffer = deque()
         self.unreliable_seqs = set()  # To increment self.seq_to_recv if alr recv seq num
-        self.reliable_buffer = {}  # Reliable packets buffer: {recv_seq -> (payload, timestamp)}
+        # Reliable packets buffer: {recv_seq -> (payload, send_ts, arrival_ts)}
+        self.reliable_buffer = {}
         self.last_missing_time = None
 
         self.unreliable_data_lock = threading.Lock()
         self.reliable_data_lock = threading.Lock()
 
+        self.metrics = ReceiverMetrics()
+        self.metrics.start(now_ms())
+
         self.running_threads = True
-        self.recv_thread = threading.Thread(target=self._recv_and_ack, daemon=True)
+        self.recv_thread = threading.Thread(
+            target=self._recv_and_ack, daemon=True)
         self.recv_thread.start()
 
     def recv(self, block=False, timeout=None):
@@ -34,15 +45,20 @@ class Receiver:
             # Receive from reliable buffer first
             with self.reliable_data_lock:
                 if self.seq_to_recv in self.reliable_buffer:
-                    payload, ts = self.reliable_buffer.pop(self.seq_to_recv)
+                    payload, send_ts, arrival_ts = self.reliable_buffer.pop(
+                        self.seq_to_recv)
                     seq = self.seq_to_recv
                     self.seq_to_recv = increment_seq(seq)
-                    self.last_missing_time = None
+                    self.last_missing_time = now_ms()
+                    # Count metrics only on delivery to application layer
+                    self.metrics.update_on_receive(
+                        RELIABLE_CHANNEL, len(payload), send_ts, arrival_ts)
                     return seq, RELIABLE_CHANNEL, payload
 
-                if (self.last_missing_time and 
-                    (now_ms() - self.last_missing_time) > RETRANSMIT_TIMEOUT_MS):
-                    print(f"[RECEIVER] skipping missing seq={self.seq_to_recv}")
+                if (self.last_missing_time and
+                        (now_ms() - self.last_missing_time) > RETRANSMIT_TIMEOUT_MS):
+                    print(
+                        f"[RECEIVER] skipping missing seq={self.seq_to_recv}")
                     self.seq_to_recv = increment_seq(self.seq_to_recv)
                     self.last_missing_time = now_ms()
             # Then receive from unreliable buffer
@@ -51,7 +67,10 @@ class Receiver:
                     if self.seq_to_recv in self.unreliable_seqs:
                         self.unreliable_seqs.remove(self.seq_to_recv)
                         self.seq_to_recv = increment_seq(self.seq_to_recv)
-                    seq, payload = self.unreliable_buffer.popleft()
+                    seq, send_ts, arrival_ts, payload = self.unreliable_buffer.popleft()
+                    # Count metrics only on delivery
+                    self.metrics.update_on_receive(
+                        UNRELIABLE_CHANNEL, len(payload), send_ts, arrival_ts)
                     return seq, UNRELIABLE_CHANNEL, payload
 
             if not block:
@@ -63,7 +82,7 @@ class Receiver:
     def close(self):
         self.running_threads = False
         self.sock.close()
-    
+
     def _recv_and_ack(self):
         while self.running_threads:
             try:
@@ -75,56 +94,106 @@ class Receiver:
                 ch, seq, ts, payload = unpack_packet(data)
             except Exception:
                 continue
-            
+            arrival = now_ms()
+
             # If critical packet, store in reliable buffer and send ACK
             if ch == RELIABLE_CHANNEL:
                 with self.reliable_data_lock:
-                    self.reliable_buffer[seq] = (payload, now_ms())
-                    if seq > self.seq_to_recv and self.last_missing_time is None:
-                        self.last_missing_time = now_ms()
-                
-                ack = pack_packet(RELIABLE_CHANNEL, seq, now_ms(), b"ACK")
+                    # Store payload and timing for delivery-time metrics
+                    self.reliable_buffer[seq] = (payload, ts, arrival)
+
+                ack = pack_packet(RELIABLE_CHANNEL, seq, arrival, b"ACK")
                 self.sock.sendto(ack, self.dest_socket_addr)
             # Else simply push to unreliable buffer
             else:
                 with self.unreliable_data_lock:
-                    self.unreliable_buffer.append((seq, payload))
+                    # Store seq, original send timestamp and arrival for delivery-time metrics
+                    self.unreliable_buffer.append((seq, ts, arrival, payload))
                     self.unreliable_seqs.add(seq)
+                # Do not count metrics yet; only when delivered to app in recv()
+
 
 if __name__ == '__main__':
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--direct", action="store_true",
+                        help="Bypass emulator and receive ACKs directly to sender")
+    parser.add_argument("--duration", type=float,
+                        default=20.0, help="Run duration in seconds")
+    parser.add_argument("--metrics-json", type=str, default="",
+                        help="Optional path to write receiver metrics JSON summary")
+    parser.add_argument("--pdr-from", type=str, default="",
+                        help="Optional path to sender metrics JSON to compute PDR")
+    args = parser.parse_args()
+
     # Main receiver logic
     print("[RECEIVER] listening...")
-    receiver = Receiver(RECEIVER_ADDR, EMULATOR_PROXY) # Change dst to SENDER_ADDR to skip emulator proxy
+    dest = SENDER_ADDR if args.direct else EMULATOR_PROXY
+    receiver = Receiver(RECEIVER_ADDR, dest)
     recv = []
     start_time = time.time()
 
     try:
-        while time.time() - start_time < 15:
+        while time.time() - start_time < args.duration:
             msg = receiver.recv(block=True, timeout=1)
             if msg:
                 seq, ch, data = msg
-                print(f"[RECEIVER] got seq={seq} ch={'REL' if ch==RELIABLE_CHANNEL else 'UNREL'} data={data}")
+                print(
+                    f"[RECEIVER] got seq={seq} ch={'REL' if ch==RELIABLE_CHANNEL else 'UNREL'} data={data}")
                 recv.append((seq, ch))
     except KeyboardInterrupt:
         pass
     finally:
+        receiver.metrics.stop(now_ms())
+        # TODO: not rly a todo but im not sure of the usecase for the result array so i'm commenting this out (ALAN)
+
         # Reliable packets are denoted by their seqno, unreliable packets are denoted by a string
         # of comma-separated seqnos in between reliable packet seqnos based on the recv order
-        result = []
-        unrel_buffer = []
+        # result = []
+        # unrel_buffer = []
 
-        for seq, ch in recv:
-            if ch == UNRELIABLE_CHANNEL:
-                unrel_buffer.append(str(seq))
-            else:
-                if unrel_buffer:
-                    result.append(",".join(unrel_buffer))
-                    unrel_buffer = []
-                result.append(seq)
+        # for seq, ch in recv:
+        #     if ch == UNRELIABLE_CHANNEL:
+        #         unrel_buffer.append(str(seq))
+        #     else:
+        #         if unrel_buffer:
+        #             result.append(",".join(unrel_buffer))
+        #             unrel_buffer = []
+        #         result.append(seq)
 
-        # Flush trailing unreliables (if any)
-        if unrel_buffer:
-            result.append(",".join(unrel_buffer))
+        # # Flush trailing unreliables (if any)
+        # if unrel_buffer:
+        #     result.append(",".join(unrel_buffer))
 
-        print(f"[RECEIVER] RESULT: {result}")
+        # print(f"[RECEIVER] RESULT: {result}")
+        # print()
+        recv_summary = receiver.metrics.summary()
+        print(format_receiver_summary(recv_summary))
+
+        # Optional JSON export
+        if args.metrics_json:
+            try:
+                with open(args.metrics_json, "w") as f:
+                    json.dump(recv_summary, f, indent=2)
+                print(f"[RECEIVER] Wrote metrics JSON to {args.metrics_json}")
+            except Exception as e:
+                print(f"[RECEIVER] Failed to write metrics JSON: {e}")
+
+        # Optional PDR computation if sender metrics available
+        if args.pdr_from and os.path.exists(args.pdr_from):
+            try:
+                with open(args.pdr_from, "r") as f:
+                    sender_summary = json.load(f)
+
+                def pdr(recv_pkts, sent_pkts):
+                    return (100.0 * recv_pkts / sent_pkts) if sent_pkts > 0 else 0.0
+                rel_pdr = pdr(recv_summary.get("reliable", {}).get("packets", 0),
+                              sender_summary.get("reliable", {}).get("sent_packets", 0))
+                unrel_pdr = pdr(recv_summary.get("unreliable", {}).get("packets", 0),
+                                sender_summary.get("unreliable", {}).get("sent_packets", 0))
+                print("\n[PDR] Packet Delivery Ratio (%):")
+                print(f"  reliable   : {rel_pdr:.2f}%")
+                print(f"  unreliable : {unrel_pdr:.2f}%")
+            except Exception as e:
+                print(
+                    f"[RECEIVER] Failed to compute PDR from {args.pdr_from}: {e}")
         receiver.close()
