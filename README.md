@@ -97,13 +97,14 @@ python3 sender.py --duration 10 --rate 20 --metrics-json sender_jitter.json
 Emulator (Terminal A)
 
 ```bash
-python3 emulator.py --loss 0.11 --delay 10 --quiet 
+python3 emulator.py --loss 0.11 --delay 10 --quiet
 ```
 
 Receiver (Terminal B)
+(Note: run terminal C immediately after running terminal B, or seqno will be autoincremented if it receives nothing)
 
 ```bash
-python3 receiver.py --duration 20 --metrics-json receiver_high.json --pdr-from sender_high.json
+python3 receiver.py --duration 15 --metrics-json receiver_high.json --pdr-from sender_high.json
 ```
 
 Sender (Terminal C)
