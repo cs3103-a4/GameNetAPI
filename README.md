@@ -101,9 +101,10 @@ python emulator.py --loss 0.11 --delay 10 --quiet
 ```
 
 Receiver (Terminal B)
+(Note: run terminal C immediately after running terminal B, or seqno will be autoincremented if it receives nothing)
 
 ```bash
-python receiver.py --duration 20 --metrics-json metrics/receiver_high.json --pdr-from metrics/sender_high.json
+python3 receiver.py --duration 15 --metrics-json metrics/receiver_high.json --pdr-from metrics/sender_high.json
 ```
 
 Sender (Terminal C)
