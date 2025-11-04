@@ -22,9 +22,6 @@ class ReceiverMetrics:
     def start(self, now_ms): self.start_time_ms = now_ms
     def stop(self, now_ms): self.end_time_ms = now_ms
 
-    @staticmethod
-    def _wrap_diff_ms(arrival_ms, send_ts_u32):
-        return float(((arrival_ms & 0xFFFFFFFF) - (send_ts_u32 & 0xFFFFFFFF)) & 0xFFFFFFFF)
 
     def update_on_receive(self, channel, payload_len, send_ts_ms, arrival_ms):
         st = self._stats[channel]
@@ -32,7 +29,7 @@ class ReceiverMetrics:
         st["bytes"] += payload_len
         # Only record latency/jitter for UNRELIABLE on receiver side (reliable will be NA)
         if channel == UNRELIABLE:
-            t = self._wrap_diff_ms(arrival_ms, send_ts_ms)
+            t = arrival_ms - send_ts_ms
             st["latencies"].append(t)
             if st["_last"] is not None:
                 d = abs(t - st["_last"])

@@ -2,7 +2,7 @@
 import struct
 import time
 
-HEADER_FORMAT = '!B H I'  # ChannelType(1B), SeqNo(2B), Timestamp_ms(4B)
+HEADER_FORMAT = '!B H Q'  # ChannelType(1B), SeqNo(2B), Timestamp_ms(8B)
 HEADER_SIZE = struct.calcsize(HEADER_FORMAT)
 RELIABLE_CHANNEL = 0
 UNRELIABLE_CHANNEL = 1
@@ -11,7 +11,7 @@ def now_ms():
     return int(time.time() * 1000)
 
 def pack_packet(channel_type: int, seqno: int, timestamp_ms: int, payload: bytes) -> bytes:
-    header = struct.pack(HEADER_FORMAT, channel_type, seqno & 0xFFFF, timestamp_ms & 0xFFFFFFFF)
+    header = struct.pack(HEADER_FORMAT, channel_type, seqno & 0xFFFF, timestamp_ms)
     return header + payload
 
 def unpack_packet(data: bytes):
