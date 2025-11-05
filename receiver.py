@@ -99,8 +99,10 @@ class Receiver:
                 ch, seq, ts, payload = unpack_packet(data)
             except Exception:
                 continue
-            arrival = now_ms()
 
+            arrival = now_ms()
+            # print(f"seq={seq}, ch={ch} ARRIVED AT {arrival}, took {arrival-ts}ms to reach")
+            
             # If critical packet, store in reliable buffer and send ACK
             if ch == RELIABLE_CHANNEL:
                 with self.reliable_data_lock:
@@ -110,6 +112,7 @@ class Receiver:
                     self.last_missing_time = arrival
 
                 ack = pack_packet(RELIABLE_CHANNEL, seq, arrival, b"ACK")
+                # print(f"seq={seq}, ch={ch} SEND ACK AT {now_ms()}")
                 self.sock.sendto(ack, self.dest_socket_addr)
             # Else simply push to unreliable buffer
             else:
