@@ -3,6 +3,7 @@ import threading
 import time
 import argparse
 import json
+import random
 from emulator import EMULATOR_PROXY, SENDER_ADDR, RECEIVER_ADDR
 from utils import increment_seq, pack_packet, unpack_packet, now_ms, RELIABLE_CHANNEL, UNRELIABLE_CHANNEL
 from metrics import SenderMetrics, format_sender_summary
@@ -12,6 +13,18 @@ RETRANSMIT_TIMEOUT_MS = 200
 RETRANSMIT_INTERVAL_MS = 20  # Time delta between each retransmission attempt
 MAX_RETRANSMIT_ATTEMPTS = 10  # 10 attempts * 20ms = 200ms <= timeout t
 
+GAME_MESSAGES = {
+    "reliable": [
+        "PLAYER_JOIN:player1",
+        "GAME_STATE:score_update:teamA-2,teamB-1",
+        "PLAYER_LEVEL_UP:player2:level5"
+    ],
+    "unreliable": [
+        "PLAYER_MOVE:player1:x=150,y=280",
+        "PLAYER_ACTION:player2:jump",
+        "OBJECT_UPDATE:ball:x=320,y=180"
+    ]
+}
 
 class Sender:
     def __init__(self, src_socket_addr, dest_socket_addr):
@@ -137,9 +150,13 @@ if __name__ == '__main__':
         while time.time() - start < args.duration:
             is_reliable = next_rel
             next_rel = not next_rel
-            msg = f"hello_{'R' if is_reliable else 'U'}"
+
+            # Choose a random game message based on channel type
+            msg_type = "reliable" if is_reliable else "unreliable"
+            msg = random.choice(GAME_MESSAGES[msg_type])
+
             seq = sender.send(msg, is_reliable=is_reliable)
-            print(f"[SENDER] Sent seq={seq} is_reliable={is_reliable}")
+            print(f"[SENDER] Sent seq={seq} is_reliable={is_reliable} msg={msg}")
             time.sleep(interval)
     except KeyboardInterrupt:
         pass
