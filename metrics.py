@@ -1,3 +1,6 @@
+from utils import now_ms
+
+
 RELIABLE, UNRELIABLE = 0, 1
 
 
@@ -28,7 +31,7 @@ def _avg(values):
 class ReceiverMetrics:
     def __init__(self):
         self.start_time_ms = self.end_time_ms = None
-        self._stats = {ch: {"packets": 0, "bytes": 0, "latencies": [], "jitter": 0.0, "_last": None}
+        self._stats = {ch: {"packets": 0, "bytes": 0, "latencies": [], "jitter": 0.0, "_last": None, "buffer_latencies": []}
                        for ch in (RELIABLE, UNRELIABLE)}
 
     def start(self, now_ms): self.start_time_ms = now_ms
@@ -36,6 +39,7 @@ class ReceiverMetrics:
 
 
     def update_on_receive(self, channel, payload_len, send_ts_ms, arrival_ms):
+        now = now_ms()
         st = self._stats[channel]
         st["packets"] += 1
         st["bytes"] += payload_len
@@ -47,6 +51,9 @@ class ReceiverMetrics:
                 d = abs(t - st["_last"])
                 st["jitter"] += (d - st["jitter"]) / 16.0
             st["_last"] = t
+        # Record buffer wait time for both channels
+        buffer_t = now - arrival_ms
+        st["buffer_latencies"].append(buffer_t)
 
     def summary(self):
         dur = (max(0, (self.end_time_ms - self.start_time_ms)) / 1000.0) if (
@@ -61,7 +68,8 @@ class ReceiverMetrics:
                     "latency_min_ms": None, "latency_avg_ms": None,
                     "latency_p95_ms": None, "latency_p99_ms": None, "latency_max_ms": None,
                     "jitter_ms": None,
-                    "throughput_Bps": (st["bytes"]/dur if dur > 0 else 0.0)
+                    "throughput_Bps": (st["bytes"]/dur if dur > 0 else 0.0),
+                    "buffer_avg_ms": sum(st["buffer_latencies"]) / len(st["buffer_latencies"]) if st["buffer_latencies"] else 0 
                 }
             else:
                 out[name] = {
@@ -69,7 +77,8 @@ class ReceiverMetrics:
                     "latency_min_ms": _min(l), "latency_avg_ms": _avg(l),
                     "latency_p95_ms": _pct(l, 95), "latency_p99_ms": _pct(l, 99), "latency_max_ms": _max(l),
                     "jitter_ms": float(st["jitter"]),
-                    "throughput_Bps": (st["bytes"]/dur if dur > 0 else 0.0)
+                    "throughput_Bps": (st["bytes"]/dur if dur > 0 else 0.0),
+                    "buffer_avg_ms": sum(st["buffer_latencies"]) / len(st["buffer_latencies"]) if st["buffer_latencies"] else 0 
                 }
         return out
 
@@ -131,7 +140,7 @@ class SenderMetrics:
 def format_receiver_summary(summary: dict) -> str:
     hdr = (
         "[RECEIVER] Metrics summary:\n"
-        "  channel       packets(cnt)  bytes(B)  min(ms)  avg(ms)  p95(ms)  p99(ms)  max(ms)  jitter(ms)  thr(B/s)"
+        "  channel       packets(cnt)  bytes(B)  min(ms)  avg(ms)  p95(ms)  p99(ms)  max(ms)  jitter(ms)  thr(B/s)  buffer(ms)"
     )
 
     def fmt_float(v, width, prec):
@@ -144,14 +153,16 @@ def format_receiver_summary(summary: dict) -> str:
                 f"{fmt_float(s.get('latency_min_ms'),9,2)}{fmt_float(s.get('latency_avg_ms'),9,2)}"
                 f"{fmt_float(s.get('latency_p95_ms'),9,2)}{fmt_float(s.get('latency_p99_ms'),9,2)}"
                 f"{fmt_float(s.get('latency_max_ms'),9,2)}"
-                f"{fmt_float(s.get('jitter_ms'),11,3)}{float(s.get('throughput_Bps',0.0)):>11.1f}")
+                f"{fmt_float(s.get('jitter_ms'),11,3)}{float(s.get('throughput_Bps',0.0)):>11.1f}"
+                f"{fmt_float(s.get('buffer_avg_ms'),9,2)}"
+                )
     return "\n".join([hdr, row("reliable", summary.get("reliable", {})), row("unreliable", summary.get("unreliable", {}))])
 
 
 def format_sender_summary(summary: dict) -> str:
     hdr = (
         "[SENDER] Metrics summary:\n"
-        "  channel      sent_pkts(cnt)  sent_bytes(B)  retrans(cnt)  min(ms)  avg(ms)  p95(ms)  p99(ms)  max(ms)  jitter(ms)"
+        "  channel      sent_pkts(cnt)  sent_bytes(B)  retrans(cnt)  min(ms)  avg(ms)  p95(ms)  p99(ms)  max(ms)  jitter(ms)  buffer(ms)"
     )
 
     def fmt_float(v, width, prec):
@@ -164,5 +175,6 @@ def format_sender_summary(summary: dict) -> str:
                 f"{int(s.get('retransmissions',0)):>13}{fmt_float(s.get('latency_min_ms'),9,2)}"
                 f"{fmt_float(s.get('latency_avg_ms'),9,2)}{fmt_float(s.get('latency_p95_ms'),9,2)}"
                 f"{fmt_float(s.get('latency_p99_ms'),9,2)}{fmt_float(s.get('latency_max_ms'),9,2)}"
-                f"{fmt_float(s.get('jitter_ms'),11,3)}")
+                f"{fmt_float(s.get('jitter_ms'),11,3)}"
+                )
     return "\n".join([hdr, row("reliable", summary.get("reliable", {})), row("unreliable", summary.get("unreliable", {}))])
