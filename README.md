@@ -63,13 +63,13 @@ python emulator.py --loss 0.01 --delay 20 --jitter 5 --quiet
 Receiver (Terminal B)
 
 ```bash
-python receiver.py --duration 12 --metrics-json metrics/receiver_low.json --pdr-from metrics/sender_low.json
+python3 receiver.py --duration 12 --metrics-json metrics/receiver_low.json --pdr-from metrics/sender_low.json
 ```
 
 Sender (Terminal C)
 
 ```bash
-python sender.py --duration 10 --rate 20 --metrics-json metrics/sender_low.json
+python3 sender.py --duration 10 --rate 20 --metrics-json metrics/sender_low.json
 ```
 
 ### Moderate jitter, no loss

@@ -1,0 +1,18 @@
+{
+  "reliable": {
+    "packets": 84,
+    "bytes": 588,
+    "latency_p50_ms": null,
+    "latency_p95_ms": null,
+    "jitter_ms": null,
+    "throughput_Bps": 19.24272670746474
+  },
+  "unreliable": {
+    "packets": 90,
+    "bytes": 630,
+    "latency_p50_ms": 14.0,
+    "latency_p95_ms": 20.0,
+    "jitter_ms": 4.70836632692726,
+    "throughput_Bps": 20.617207186569363
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "reliable": {
+    "sent_packets": 143,
+    "sent_bytes": 2574,
+    "retransmissions": 297,
+    "latency_p50_ms": 28.0,
+    "latency_p95_ms": 71.5
+  },
+  "unreliable": {
+    "sent_packets": 143,
+    "sent_bytes": 2574,
+    "retransmissions": 0,
+    "latency_p50_ms": null,
+    "latency_p95_ms": null
+  }
+}

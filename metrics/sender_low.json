@@ -1,0 +1,24 @@
+{
+  "reliable": {
+    "sent_packets": 193,
+    "sent_bytes": 7601,
+    "retransmissions": 348,
+    "latency_min_ms": 22.0,
+    "latency_avg_ms": 27.838541666666668,
+    "latency_p95_ms": 32.5,
+    "latency_p99_ms": 42.5,
+    "latency_max_ms": 46.5,
+    "jitter_ms": 3.6939849619483334
+  },
+  "unreliable": {
+    "sent_packets": 192,
+    "sent_bytes": 7712,
+    "retransmissions": 0,
+    "latency_min_ms": null,
+    "latency_avg_ms": null,
+    "latency_p95_ms": null,
+    "latency_p99_ms": null,
+    "latency_max_ms": null,
+    "jitter_ms": null
+  }
+}
