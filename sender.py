@@ -53,6 +53,7 @@ class Sender:
         ch = RELIABLE_CHANNEL if is_reliable else UNRELIABLE_CHANNEL
         seq = self.seq_to_send
         send_time = now_ms()
+        # print(f"seq={seq}, rel={is_reliable} SENT AT {send_time}ms")
         packet = pack_packet(ch, seq, send_time, payload.encode('utf-8'))
         self.sock.sendto(packet, self.dest_socket_addr)
         self.metrics.update_on_send(ch, len(packet))
@@ -87,13 +88,29 @@ class Sender:
                 continue
             with self.pending_acks_lock:
                 info = self.pending_acks.pop(seq, None)
-            if info is not None:
-                nowt = now_ms()
-                # Compute reliable one-way latency from first send to ACK arrival, divided by 2
-                rtt_from_first = nowt - \
-                    info.get("first_sent_time", info["sent_time"])
-                reliable_latency = rtt_from_first / 2.0
-                self.metrics.update_on_reliable_latency(reliable_latency)
+            """
+            NOTE: The initial approach below to record the e2e latency from when a packet was first
+            sent, to when it finally receives the ACK is valid below. However, due to OS optimisations,
+            if socket at localhost port X receives a packet sent from localhost port Y, then sends ACK 
+            right after back to port Y, this ACK will always take between 0 and 1 ms (instead of the 
+            usual 5-10ms) to reach the dst. This 'localhost short-circuit' optimisation renders the
+            2nd leg (ACK packet)'s latency invalid to be included in our performance metrics, because
+            it will underestimate the latency of the reliable channel by almost 50%.
+
+            Therefore, the block of code below is commented out, as we will derive latency metrics all
+            on the receiver's side instead, where e2e latency is from when a packet was first sent, to
+            when it finally gets pushed to the receiver application. In other words, e2e latency of a
+            packet = one-way network latency (from sender to receiver) + buffer latency (from receiver to
+            application)
+            """
+            # if info is not None:
+            #     nowt = now_ms()
+            #     # Compute reliable one-way latency from first send to ACK arrival, divided by 2
+            #     rtt_from_first = nowt - \
+            #         info.get("first_sent_time", info["sent_time"])
+            #     print(f"seq={seq}, ch={ch} RECEIVED ACK AT {nowt}. First sent time is {info.get("first_sent_time", info["sent_time"])}.")
+            #     reliable_latency = rtt_from_first / 2.0
+            #     self.metrics.update_on_reliable_latency(reliable_latency)
 
     def _retransmit(self):
         while self.running_threads:
