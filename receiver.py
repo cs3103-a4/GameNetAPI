@@ -39,7 +39,8 @@ class Receiver:
             target=self._recv_and_ack, daemon=True)
         self.recv_thread.start()
 
-    def recv(self):
+    def recv(self, hard_timeout_ms):
+        start = now_ms()
         while True:
             now = now_ms()
             # Receive from reliable buffer first
@@ -73,7 +74,9 @@ class Receiver:
                     self.metrics.update_on_receive(
                         UNRELIABLE_CHANNEL, len(payload), send_ts, arrival_ts)
                     return seq, UNRELIABLE_CHANNEL, payload
-
+            # Return if no new arrivals (hard timeout)
+            if now - start >= hard_timeout_ms:
+                return None
 
     def close(self):
         self.running_threads = False
@@ -136,7 +139,7 @@ if __name__ == '__main__':
 
     try:
         while time.time() - start_time < args.duration:
-            msg = receiver.recv()
+            msg = receiver.recv(hard_timeout_ms = 1000)
             if msg:
                 seq, ch, data = msg
                 print(
