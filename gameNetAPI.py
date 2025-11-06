@@ -186,7 +186,8 @@ class GameNetAPI:
                     if (self.last_recv_time and
                         (now - self.last_recv_time) > RETRANSMIT_TIMEOUT_MS):
                         print(
-                            f"[RECEIVER] skipping missing seq={self.seq_to_recv} (200ms timeout)")
+                            f"[RECEIVER] skipping missing seq={self.seq_to_recv}"
+                            f" ({RETRANSMIT_TIMEOUT_MS}ms timeout)")
                         self.seq_to_recv = increment_seq(self.seq_to_recv)
                         self.last_recv_time = now
                 # Then receive from unreliable buffer
