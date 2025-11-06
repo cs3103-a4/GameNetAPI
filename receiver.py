@@ -95,6 +95,10 @@ class Receiver:
             except BlockingIOError:
                 time.sleep(0.001)
                 continue
+            except ConnectionResetError:
+                # Windows-specific: ICMP port unreachable
+                time.sleep(0.001)
+                continue
             try:
                 ch, seq, ts, payload = unpack_packet(data)
             except Exception:
