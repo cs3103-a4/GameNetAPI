@@ -97,14 +97,33 @@ python sender.py --duration 10 --rate 20 --metrics-json metrics/sender_jitter.js
 Emulator (Terminal A)
 
 ```bash
-python emulator.py --loss 0.11 --delay 10 --quiet 
+python emulator.py --loss 0.11 --delay 10 --quiet
 ```
 
 Receiver (Terminal B)
-(Note: run terminal C immediately after running terminal B, or seqno will be autoincremented if it receives nothing)
 
 ```bash
 python3 receiver.py --duration 15 --metrics-json metrics/receiver_high.json --pdr-from metrics/sender_high.json
+```
+
+Sender (Terminal C)
+
+```bash
+python sender.py --duration 10 --rate 10 --metrics-json metrics/sender_high.json
+```
+
+### Very high loss (>20%)
+
+Emulator (Terminal A)
+
+```bash
+python emulator.py --loss 0.21 --delay 10 --quiet
+```
+
+Receiver (Terminal B)
+
+```bash
+python3 receiver.py --duration 18 --metrics-json metrics/receiver_high.json --pdr-from metrics/sender_high.json
 ```
 
 Sender (Terminal C)
