@@ -1,0 +1,34 @@
+{
+  "reliable": {
+    "packets": 72,
+    "bytes": 2063,
+    "latency_min_ms": 1.0,
+    "latency_avg_ms": 1592.46,
+    "latency_p95_ms": 4516,
+    "latency_p99_ms": 4698,
+    "latency_max_ms": 4756.0,
+    "jitter_ms": 57.69,
+    "throughput_Bps": 98.45,
+    "buffer_min_ms": 0.0,
+    "buffer_avg_ms": 1543.14,
+    "buffer_p95_ms": 4467,
+    "buffer_p99_ms": 4623,
+    "buffer_max_ms": 4670.0
+  },
+  "unreliable": {
+    "packets": 57,
+    "bytes": 1641,
+    "latency_min_ms": 1.0,
+    "latency_avg_ms": 16.86,
+    "latency_p95_ms": 34,
+    "latency_p99_ms": 44,
+    "latency_max_ms": 50.0,
+    "jitter_ms": 8.34,
+    "throughput_Bps": 78.31,
+    "buffer_min_ms": 0.0,
+    "buffer_avg_ms": 0.0,
+    "buffer_p95_ms": 0,
+    "buffer_p99_ms": 0,
+    "buffer_max_ms": 0.0
+  }
+}
