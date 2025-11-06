@@ -9,7 +9,6 @@ from utils import increment_seq, pack_packet, unpack_packet, now_ms, RELIABLE_CH
 from metrics import SenderMetrics, format_sender_summary
 
 # Timeout t beyond which reliable packet is dropped = 200ms
-RETRANSMIT_TIMEOUT_MS = 200
 RETRANSMIT_INTERVAL_MS = 40  # Time delta between each retransmission attempt
 MAX_RETRANSMIT_ATTEMPTS = 5  # 5 attempts * 40ms = 200ms <= timeout t
 

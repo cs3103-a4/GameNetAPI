@@ -9,8 +9,8 @@ from emulator import EMULATOR_PROXY, RECEIVER_ADDR, SENDER_ADDR
 from utils import increment_seq, pack_packet, unpack_packet, now_ms, RELIABLE_CHANNEL, UNRELIABLE_CHANNEL
 from metrics import ReceiverMetrics, format_receiver_summary
 
+# Timeout t beyond which reliable packet is dropped = 200ms
 RETRANSMIT_TIMEOUT_MS = 200
-
 
 class Receiver:
     def __init__(self, src_socket_addr, dest_socket_addr):
@@ -26,7 +26,7 @@ class Receiver:
         self.unreliable_seqs = set()  # To increment self.seq_to_recv if alr recv seq num
         # Reliable packets buffer: {recv_seq -> (payload, send_ts, arrival_ts)}
         self.reliable_buffer = {}
-        self.last_missing_time = None
+        self.last_recv_time = None
 
         self.unreliable_data_lock = threading.Lock()
         self.reliable_data_lock = threading.Lock()
@@ -39,9 +39,9 @@ class Receiver:
             target=self._recv_and_ack, daemon=True)
         self.recv_thread.start()
 
-    def recv(self, block=False, timeout=None):
-        start = now_ms()
+    def recv(self):
         while True:
+            now = now_ms()
             # Receive from reliable buffer first
             with self.reliable_data_lock:
                 if self.seq_to_recv in self.reliable_buffer:
@@ -49,19 +49,18 @@ class Receiver:
                         self.seq_to_recv)
                     seq = self.seq_to_recv
                     self.seq_to_recv = increment_seq(seq)
-                    self.last_missing_time = None
-
+                    self.last_recv_time = now
                     # Count metrics only on delivery to application layer
                     self.metrics.update_on_receive(
                         RELIABLE_CHANNEL, len(payload), send_ts, arrival_ts)
                     return seq, RELIABLE_CHANNEL, payload
-
-                if (self.last_missing_time and
-                        (now_ms() - self.last_missing_time) > RETRANSMIT_TIMEOUT_MS):
+                # Skip seq num if timeout
+                if (self.last_recv_time and
+                    (now - self.last_recv_time) > RETRANSMIT_TIMEOUT_MS):
                     print(
-                        f"[RECEIVER] skipping missing seq={self.seq_to_recv}")
+                        f"[RECEIVER] skipping missing seq={self.seq_to_recv} (200ms timeout)")
                     self.seq_to_recv = increment_seq(self.seq_to_recv)
-                    self.last_missing_time = now_ms()
+                    self.last_recv_time = now
             # Then receive from unreliable buffer
             with self.unreliable_data_lock:
                 if self.unreliable_buffer:
@@ -69,20 +68,12 @@ class Receiver:
                         self.unreliable_seqs.remove(self.seq_to_recv)
                         self.seq_to_recv = increment_seq(self.seq_to_recv)
                     seq, send_ts, arrival_ts, payload = self.unreliable_buffer.popleft()
+                    self.last_recv_time = now
                     # Count metrics only on delivery
                     self.metrics.update_on_receive(
                         UNRELIABLE_CHANNEL, len(payload), send_ts, arrival_ts)
                     return seq, UNRELIABLE_CHANNEL, payload
 
-            if not block:
-                return None
-            if timeout and time.time() - start > timeout:
-                return None
-            
-            if (now_ms() - start > 1000):
-                print(f"[RECEIVER] no new arrivals, auto skip seq={self.seq_to_recv}")
-                self.seq_to_recv = increment_seq(self.seq_to_recv)
-                return None
 
     def close(self):
         self.running_threads = False
@@ -112,9 +103,6 @@ class Receiver:
                 with self.reliable_data_lock:
                     # Store payload and timing for delivery-time metrics
                     self.reliable_buffer[seq] = (payload, ts, arrival)
-                if seq > self.seq_to_recv and self.last_missing_time is None:
-                    self.last_missing_time = arrival
-
                 ack = pack_packet(RELIABLE_CHANNEL, seq, arrival, b"ACK")
                 # print(f"seq={seq}, ch={ch} SEND ACK AT {now_ms()}")
                 self.sock.sendto(ack, self.dest_socket_addr)
@@ -148,7 +136,7 @@ if __name__ == '__main__':
 
     try:
         while time.time() - start_time < args.duration:
-            msg = receiver.recv(block=True, timeout=1)
+            msg = receiver.recv()
             if msg:
                 seq, ch, data = msg
                 print(
