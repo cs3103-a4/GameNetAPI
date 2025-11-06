@@ -124,7 +124,7 @@ class SenderMetrics:
                 "sent_bytes": st["sent_bytes"],
                 "retransmissions": st["retransmissions"],
                 ### Latency/jitter metrics below calculated at receiver side instead of sender.
-                ### Refer to explanation in sender.py for why.
+                ### Refer to note under GameNetAPI.Sender._recv_ack for explanation.
                 # Reliable one-way latency (sender-estimated) as min/avg/p95/p99/max; NA for unreliable
                 # "latency_min_ms": _min(o) if ch == RELIABLE else None,
                 # "latency_avg_ms": _avg(o) if ch == RELIABLE else None,
