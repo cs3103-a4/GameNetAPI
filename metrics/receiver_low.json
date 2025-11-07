@@ -1,24 +1,34 @@
 {
   "reliable": {
-    "packets": 192,
-    "bytes": 5448,
-    "latency_min_ms": null,
-    "latency_avg_ms": null,
-    "latency_p95_ms": null,
-    "latency_p99_ms": null,
-    "latency_max_ms": null,
-    "jitter_ms": null,
-    "throughput_Bps": 270.0907243071737
+    "packets": 48,
+    "bytes": 1359,
+    "latency_min_ms": 20.0,
+    "latency_avg_ms": 101.98,
+    "latency_p95_ms": 138,
+    "latency_p99_ms": 230,
+    "latency_max_ms": 236.0,
+    "jitter_ms": 23.13,
+    "throughput_Bps": 90.5,
+    "buffer_min_ms": 0.0,
+    "buffer_avg_ms": 49.6,
+    "buffer_p95_ms": 113,
+    "buffer_p99_ms": 201,
+    "buffer_max_ms": 201.0
   },
   "unreliable": {
-    "packets": 191,
-    "bytes": 5570,
-    "latency_min_ms": 21.0,
-    "latency_avg_ms": 30.701570680628272,
-    "latency_p95_ms": 39.0,
-    "latency_p99_ms": 44.0,
-    "latency_max_ms": 51.0,
-    "jitter_ms": 5.6090433251450875,
-    "throughput_Bps": 276.1390114520847
+    "packets": 47,
+    "bytes": 1366,
+    "latency_min_ms": 19.0,
+    "latency_avg_ms": 27.96,
+    "latency_p95_ms": 34,
+    "latency_p99_ms": 36,
+    "latency_max_ms": 39.0,
+    "jitter_ms": 4.03,
+    "throughput_Bps": 90.97,
+    "buffer_min_ms": 0.0,
+    "buffer_avg_ms": 0.02,
+    "buffer_p95_ms": 0,
+    "buffer_p99_ms": 0,
+    "buffer_max_ms": 1.0
   }
 }

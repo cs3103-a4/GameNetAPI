@@ -1,12 +1,12 @@
 {
   "reliable": {
     "sent_packets": 49,
-    "sent_bytes": 1917,
-    "retransmissions": 44
+    "sent_bytes": 2043,
+    "retransmissions": 30
   },
   "unreliable": {
     "sent_packets": 49,
-    "sent_bytes": 1961,
+    "sent_bytes": 1960,
     "retransmissions": 0
   }
 }
